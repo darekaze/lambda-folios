@@ -1,0 +1,35 @@
+{
+  "extends": [
+    "airbnb-typescript/base",
+    "prettier/@typescript-eslint"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "prettier"],
+  "settings": {
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts"]
+    },
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true,
+        "directory": "functions/*/tsconfig.json"
+      }
+    }
+  },
+  "rules": {
+    "prettier/prettier": "warn",
+    "import/no-extraneous-dependencies": ["error", { "devDependencies": ["**/test.ts"] }],
+    "import/prefer-default-export": ["off"],
+    "import/no-unresolved": "error",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/camelcase": "off",
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "global-require": "off",
+    "no-await-in-loop": "off"
+  },
+  "env": {
+    "node": true,
+    "browser": true
+  }
+}
