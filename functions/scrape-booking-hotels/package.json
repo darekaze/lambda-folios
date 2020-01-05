@@ -15,6 +15,7 @@
   "dependencies": {
     "@google-cloud/storage": "^4.2.0",
     "chrome-aws-lambda": "~2.0.2",
+    "dayjs": "^1.8.18",
     "iltorb": "~2.4.4",
     "puppeteer-core": "~2.0.0"
   },
