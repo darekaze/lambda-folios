@@ -1,6 +1,6 @@
 import chromium from 'chrome-aws-lambda'
 import { CloudEventsContext } from '@google-cloud/functions-framework'
-import { Browser } from 'puppeteer'
+import { Browser } from 'puppeteer-core'
 
 interface PubSubMessage {
   a: string
@@ -13,14 +13,14 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
     executablePath: await chromium.executablePath,
-    headless: chromium.headless,
+    headless: chromium.headless, // default to true in dev, set to false if it's too anoyying
   })
 
   const page = await browser.newPage()
 
   await page.goto('https://www.booking.com/')
 
-  await page.screenshot({path: 'screenshot.png'})
+  // TODO: evaluate to input form and go to page
 
   await browser.close()
   console.log(data)

@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@google-cloud/functions-framework": "^1.3.2",
-    "@types/puppeteer": "~2.0.0",
+    "@types/puppeteer-core": "~2.0.0",
     "puppeteer": "~2.0.0"
   }
 }
