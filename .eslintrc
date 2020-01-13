@@ -1,11 +1,8 @@
 {
   "root": true,
   "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint"],
-  "extends": [
-    "airbnb-typescript/base",
-    "prettier/@typescript-eslint"
-  ],
+  "plugins": ["@typescript-eslint", "prettier"],
+  "extends": ["airbnb-typescript/base", "prettier/@typescript-eslint"],
   "settings": {
     "import/parsers": {
       "@typescript-eslint/parser": [".ts"]
@@ -27,7 +24,8 @@
     "@typescript-eslint/camelcase": "off",
     "@typescript-eslint/explicit-function-return-type": "off",
     "global-require": "off",
-    "no-await-in-loop": "off"
+    "no-await-in-loop": "off",
+    "arrow-parens": "off"
   },
   "env": {
     "node": true,
