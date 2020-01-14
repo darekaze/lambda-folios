@@ -1,5 +1,7 @@
 import chromium from 'chrome-aws-lambda'
 import dayjs from 'dayjs'
+
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { CloudEventsContext } from '@google-cloud/functions-framework'
 import { Browser } from 'puppeteer-core'
 
@@ -11,6 +13,10 @@ interface PubSubMessage {
 //* Note: everything should be in this file
 export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEventsContext) => {
   const dateTimeNow = dayjs()
+  const today = dateTimeNow.format('YYYY-MM-DD')
+  const nextday = dateTimeNow.add(1, 'day').format('YYYY-MM-DD')
+  const currency = 'JPY'
+
   let browser: Browser = null
 
   try {
@@ -22,17 +28,19 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
     })
 
     const page = await browser.newPage()
+    await page.setUserAgent(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36',
+    )
 
-    // TODO: setup custom user agent pls
     // TODO: and set interrupt (don't load font and image)
 
-    await page.goto('https://www.booking.com/?selected_currency=JPY')
+    await page.goto(`https://www.booking.com/?selected_currency=${currency}`)
 
     // Booking.com prevent direct dom manipulation, so we type and click lol
-    await page.type('input[name=ss]', 'Tokyo') // TODO: dynamic input destination
+    await page.type('input[name=ss]', 'Tokyo') // TODO: dynamic input destination from data
     await page.click('.xp__date-time')
-    await page.click(`td[data-date="${dateTimeNow.format('YYYY-MM-DD')}"]`)
-    await page.click(`td[data-date="${dateTimeNow.add(1, 'day').format('YYYY-MM-DD')}"]`)
+    await page.click(`td[data-date="${today}"]`)
+    await page.click(`td[data-date="${nextday}"]`)
 
     // Submit and wait for new page to load
     await Promise.all([
@@ -48,21 +56,59 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
     ])
 
     // TODO: Start scraping (loop should start here)
-    const res = await page.evaluate(async () => {
-      const items = Array.from<HTMLElement>(document.querySelectorAll('#hotellist_inner .sr_item'))
-      const currentDate = new Date()
+    const res = await page.evaluate(
+      async (dateRange, ccy) => {
+        const items = Array.from<HTMLElement>(
+          document.querySelectorAll('#hotellist_inner .sr_item'),
+        )
 
-      return await Promise.all(
-        items.map(async item => {
-          const { dataset } = item
-          return {
-            hotelid: parseInt(dataset.hotelid, 10),
-            stars: parseInt(dataset.class, 10),
-            score: parseFloat(dataset.score),
-          }
-        }),
-      )
-    })
+        return Promise.all(
+          items.map(async item => {
+            const { dataset } = item
+
+            const hotel_name = item.querySelector('.sr-hotel__name').textContent.trim()
+            const is_partner = !!item.querySelector('.-iconset-thumbs_up_square')
+
+            const linkNode: HTMLAnchorElement = item.querySelector('.sr_card_address_line a')
+            const location = linkNode.firstChild.textContent.trim()
+            const url = `https://www.booking.com${linkNode.pathname}`
+
+            const review_score = +dataset.score
+            const review_count = review_score
+              ? +item.querySelector('.bui-review-score__text').textContent.replace(/\D+/g, '')
+              : 0
+
+            const roomNode = item.querySelector('div.featuredRooms')
+            const featured_room = roomNode.querySelector('.room_link strong').textContent
+            const price = +roomNode
+              .querySelector('.bui-price-display__value')
+              .textContent.replace(/\D+/g, '')
+            const has_extra = roomNode
+              .querySelector('.prd-taxes-and-fees-under-price')
+              .textContent.includes('Additional')
+
+            return {
+              hotel_id: +dataset.hotelid,
+              stars: +dataset.class,
+              hotel_name,
+              location,
+              is_partner,
+              review_score,
+              review_count,
+              url,
+              featured_room,
+              currency: ccy,
+              price,
+              has_extra,
+              in_date: dateRange[0],
+              out_date: dateRange[1],
+            }
+          }),
+        )
+      },
+      [today, nextday],
+      currency,
+    )
 
     console.dir(res)
 
