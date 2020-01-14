@@ -6,6 +6,7 @@ import fs from 'fs'
 import { CloudEventsContext } from '@google-cloud/functions-framework'
 import { Browser, ElementHandle } from 'puppeteer-core'
 
+// TODO: define message type (need to check 'data' on cloud first..)
 interface PubSubMessage {
   a: string
   b: number
@@ -17,6 +18,7 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
   const today = dateTimeNow.format('YYYY-MM-DD')
   const nextday = dateTimeNow.add(1, 'day').format('YYYY-MM-DD')
   const currency = 'JPY'
+  const banned = ['image', 'media', 'font']
 
   const totalItems = [] // List of data to be output
 
@@ -34,8 +36,8 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
     await page.setUserAgent(
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36',
     )
-
-    // TODO: and set interrupt (don't load font and image)
+    await page.setRequestInterception(true)
+    page.on('request', req => (banned.includes(req.resourceType()) ? req.abort() : req.continue()))
 
     await page.goto(`https://www.booking.com/?selected_currency=${currency}`)
 
@@ -55,7 +57,7 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
     await Promise.all([
       page.click('#filter_out_of_stock a'),
       page.click('#filter_concise_unit_type a[data-value="Hotels + more"]'),
-      page.waitForNavigation({ waitUntil: 'networkidle0' }), // can be faster?
+      page.waitForNavigation({ waitUntil: 'networkidle0' }), // ? can be faster
     ])
 
     // Loop through pages and scrape data
@@ -141,7 +143,6 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
   // https://googleapis.dev/nodejs/storage/latest/File.html#save
   // Disable resumable!!
 
-  console.log(data)
   console.log('Done!')
 
   return context.succeed()
