@@ -1,8 +1,7 @@
 /* eslint-disable no-console */
 import chromium from 'chrome-aws-lambda'
 import dayjs from 'dayjs'
-import fs from 'fs'
-
+import { Storage } from '@google-cloud/storage'
 import { Browser, ElementHandle } from 'puppeteer-core'
 
 // Message can be customized
@@ -12,6 +11,7 @@ interface BookingHotel {
 
 //* Note: everything should be in this file
 export const scrapeBookingHotels = async (data: BookingHotel) => {
+  const storage = new Storage()
   const dateTimeNow = dayjs()
   const today = dateTimeNow.format('YYYY-MM-DD')
   const nextday = dateTimeNow.add(1, 'day').format('YYYY-MM-DD')
@@ -134,12 +134,14 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
     }
   }
 
-  // TODO: Output data to cloud
-  // DEV: output to local first
-  fs.writeFileSync('temp.json', JSON.stringify(totalItems, null, 2))
+  // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
+  const file = storage.bucket('booking-hotels').file(`${today}_${data.message}.json`)
 
-  // https://googleapis.dev/nodejs/storage/latest/File.html#save
-  // Disable resumable!!
+  try {
+    await file.save(JSON.stringify(totalItems, null, 2), { resumable: false })
+  } catch (err) {
+    return console.error(err)
+  }
 
-  return console.log('Complete!')
+  return console.log(`Complete! File name: ${file.name}`)
 }
