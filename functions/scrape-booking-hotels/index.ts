@@ -135,10 +135,15 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
   }
 
   // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
-  const file = storage.bucket('ag-booking-hotels').file(`${today}_${data.message}.json`)
+  const file = storage
+    .bucket('ag-booking-hotels')
+    .file(`${dateTimeNow.format('YYYY-MM-DD_HHmm')}_${data.message}.json`)
 
   try {
-    await file.save(JSON.stringify(totalItems, null, 2), { resumable: false })
+    await file.save(JSON.stringify(totalItems, null, 2), {
+      contentType: 'application/json',
+      resumable: false,
+    })
   } catch (err) {
     return console.error(err)
   }
