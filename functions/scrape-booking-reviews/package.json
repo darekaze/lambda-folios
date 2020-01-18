@@ -1,0 +1,27 @@
+{
+  "name": "@ag/scrape-booking-reviews",
+  "version": "0.0.1",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "functions-framework --target=scrapeBookingReviews --signature-type=event",
+    "prestart": "yarn build",
+    "deploy": "./deploy.sh"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^4.2.0",
+    "chrome-aws-lambda": "~2.0.2",
+    "dayjs": "^1.8.18",
+    "iltorb": "~2.4.4",
+    "puppeteer-core": "~2.0.0"
+  },
+  "devDependencies": {
+    "@google-cloud/functions-framework": "^1.3.2",
+    "@types/puppeteer-core": "~2.0.0",
+    "puppeteer": "~2.0.0"
+  }
+}
