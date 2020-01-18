@@ -1,19 +1,17 @@
+/* eslint-disable no-console */
 import chromium from 'chrome-aws-lambda'
 import dayjs from 'dayjs'
 import fs from 'fs'
 
-// eslint-disable-next-line import/no-extraneous-dependencies
-import { CloudEventsContext } from '@google-cloud/functions-framework'
 import { Browser, ElementHandle } from 'puppeteer-core'
 
-// TODO: define message type (need to check 'data' on cloud first..)
-interface PubSubMessage {
-  a: string
-  b: number
+// Message can be customized
+interface BookingHotel {
+  message: string
 }
 
 //* Note: everything should be in this file
-export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEventsContext) => {
+export const scrapeBookingHotels = async (data: BookingHotel) => {
   const dateTimeNow = dayjs()
   const today = dateTimeNow.format('YYYY-MM-DD')
   const nextday = dateTimeNow.add(1, 'day').format('YYYY-MM-DD')
@@ -42,7 +40,7 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
     await page.goto(`https://www.booking.com/?selected_currency=${currency}`)
 
     // Booking.com prevent direct dom manipulation, so we type and click lol
-    await page.type('input[name=ss]', 'Tokyo') // TODO: dynamic input destination from data
+    await page.type('input[name=ss]', data.message) // Read from pubsub trigger
     await page.click('.xp__date-time')
     await page.click(`td[data-date="${today}"]`)
     await page.click(`td[data-date="${nextday}"]`)
@@ -129,7 +127,7 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
       }
     } while (nextBtn)
   } catch (err) {
-    return context.fail(err)
+    return console.error(err)
   } finally {
     if (browser !== null) {
       await browser.close()
@@ -143,7 +141,5 @@ export const scrapeBookingHotels = async (data: PubSubMessage, context: CloudEve
   // https://googleapis.dev/nodejs/storage/latest/File.html#save
   // Disable resumable!!
 
-  console.log('Done!')
-
-  return context.succeed()
+  return console.log('Complete!')
 }
