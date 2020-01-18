@@ -83,6 +83,7 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
                 ? +item.querySelector('.bui-review-score__text').textContent.replace(/\D+/g, '')
                 : 0
 
+              // FIXME: next line could be problematic (table still needs to be checked i guess)
               const roomNode = item.querySelector('div.featuredRooms')
               const featured_room = roomNode.querySelector('.room_link strong').textContent
               const price = +roomNode
@@ -127,7 +128,7 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
       }
     } while (nextBtn)
   } catch (err) {
-    return console.error(err)
+    throw new Error(err)
   } finally {
     if (browser !== null) {
       await browser.close()
@@ -145,7 +146,7 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
       resumable: false,
     })
   } catch (err) {
-    return console.error(err)
+    throw new Error(err)
   }
 
   return console.log(`Complete! File name: ${file.name}`)
