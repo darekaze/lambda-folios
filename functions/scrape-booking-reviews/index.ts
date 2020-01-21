@@ -37,21 +37,14 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
     await page.setRequestInterception(true)
     page.on('request', req => (banned.includes(req.resourceType()) ? req.abort() : req.continue()))
 
-    // TODO: format url (add date)
-    await page.goto(`${data.url}?selected_currency=${currency}`)
+    await page.goto(
+      `${data.url}?selected_currency=${currency};checkin=${today};checkout=${nextday}#tab-reviews`,
+      { waitUntil: 'networkidle2' },
+    )
 
-    // TODO: load review section
-    await Promise.all([
-      page.click('button[data-sb-id="main"]'),
-      page.waitForNavigation({ waitUntil: 'networkidle2' }),
-    ])
-
-    // TODO: filter to only english
-    await Promise.all([
-      page.click('#filter_out_of_stock a'),
-      page.click('#filter_concise_unit_type a[data-value="Hotels + more"]'),
-      page.waitForNavigation({ waitUntil: 'networkidle0' }), // ? can be faster
-    ])
+    // Filter to only fetch english reviews
+    await page.$eval('.language_filter input[value="en"]', node => node.parentElement.click())
+    await page.waitForSelector('#review_list_page_container', { visible: true })
 
     // TODO: Loop through reviews and scrape data
     let nextBtn: ElementHandle = null
