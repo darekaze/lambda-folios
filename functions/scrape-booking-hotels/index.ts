@@ -128,7 +128,7 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
       }
     } while (nextBtn)
   } catch (err) {
-    throw new Error(err)
+    return console.error(err)
   } finally {
     if (browser !== null) {
       await browser.close()
@@ -146,7 +146,7 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
       resumable: false,
     })
   } catch (err) {
-    throw new Error(err)
+    return console.error(err)
   }
 
   return console.log(`Complete! File name: ${file.name}`)
