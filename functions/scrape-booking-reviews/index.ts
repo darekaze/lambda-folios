@@ -18,7 +18,7 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
   const currency = 'JPY'
   const banned = ['image', 'media', 'font']
 
-  const totalItems = [] // List of data to be output
+  const allReviews = [] // List of data to be output
 
   let browser: Browser = null
 
@@ -46,82 +46,87 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
     await page.$eval('.language_filter input[value="en"]', node => node.parentElement.click())
     await page.waitForSelector('#review_list_page_container', { visible: true })
 
-    // TODO: Loop through reviews and scrape data
+    // Loop through reviews and scrape data
     let nextBtn: ElementHandle = null
+    let isEnd = true
+
     do {
-      const res = await page.evaluate(
-        async (dateRange: string[], ccy: string) => {
-          const items = Array.from<HTMLElement>(
-            document.querySelectorAll('#hotellist_inner .sr_item'),
-          )
+      const res = await page.evaluate(async () => {
+        const reviews = Array.from<HTMLElement>(
+          document.querySelectorAll('#review_list_page_container .review_list .c-review-block'),
+        )
 
-          return Promise.all(
-            items.map(async item => {
-              const { dataset } = item
+        return Promise.all(
+          reviews.map(async item => {
+            // Check whether the review is helpful, only process with helpful review
+            const isHelpful = !!item.querySelector('.c-review-block__row--helpful-vote')
 
-              const hotel_name = item.querySelector('.sr-hotel__name').textContent.trim()
-              const urlpath = item.querySelector<HTMLAnchorElement>('a.hotel_name_link').pathname
-              const is_partner = !!item.querySelector('.-iconset-thumbs_up_square')
-              const location = item
-                .querySelector('.sr_card_address_line a')
-                .firstChild.textContent.trim()
+            if (!isHelpful) return null
 
-              const review_score = +dataset.score
-              const review_count = review_score
-                ? +item.querySelector('.bui-review-score__text').textContent.replace(/\D+/g, '')
-                : 0
+            // Process helpful review // WONTFIX: problematic to use in China
+            const nationality = item
+              .querySelector('.c-guest .bui-avatar-block__subtitle')
+              .lastChild.textContent.trim()
+            const score = +item.querySelector('.c-score').textContent.trim()
+            const reviewDate = item
+              .querySelector('.c-review-block__date')
+              .textContent.replace('Reviewed:', '')
+              .trim()
+            const title = item.querySelector('.c-review-block__title').textContent.trim()
 
-              // FIXME: next line could be problematic (table still needs to be checked i guess)
-              const roomNode = item.querySelector('div.featuredRooms')
-              const featured_room = roomNode.querySelector('.room_link strong').textContent
-              const price = +roomNode
-                .querySelector('.bui-price-display__value')
-                .textContent.replace(/\D+/g, '')
-              const has_extra = roomNode
-                .querySelector('.prd-taxes-and-fees-under-price')
-                .textContent.includes('Additional')
-
-              return {
-                hotel_id: +dataset.hotelid,
-                stars: +dataset.class,
-                hotel_name,
-                location,
-                is_partner,
-                review_score,
-                review_count,
-                featured_room,
-                currency: ccy,
-                price,
-                has_extra,
-                in_date: dateRange[0],
-                out_date: dateRange[1],
-                url: `https://www.booking.com${urlpath}`,
+            let positive = ''
+            let negative = ''
+            const reviewRows = Array.from<HTMLElement>(item.querySelectorAll('.c-review__row'))
+            reviewRows.forEach(row => {
+              if (row.querySelector('.c-review__prefix--color-green')) {
+                positive = row.querySelector('.c-review__body').textContent
+              } else {
+                negative = row.querySelector('.c-review__body').textContent
               }
-            }),
-          )
-        },
-        [today, nextday],
-        currency,
-      )
+            })
+
+            let room = 'Not provided'
+            const roomInfo = item.querySelector('.c-review-block__room-info .room_info_heading')
+            if (roomInfo) {
+              room = roomInfo.textContent.replace('Stayed in:', '').trim()
+            }
+
+            return {
+              nationality,
+              score,
+              title,
+              positive,
+              negative,
+              room,
+              reviewDate,
+            }
+          }),
+        )
+      })
+
+      // If contains null, end scraping
+      isEnd = res.some(value => value === null)
+
       // Push to list
-      totalItems.push(...res)
+      allReviews.push(...res.filter(n => n))
 
       // Check and proceed
-      nextBtn = await page.$('.bui-pagination__next-arrow a')
+      await page.waitFor(1000) // TEMP: Scroll cause error, need to find a better way..
+      nextBtn = await page.$('#review_list_page_container .bui-pagination__next-arrow a')
       if (nextBtn) {
-        await Promise.all([
-          nextBtn.click(),
-          page.waitForResponse('https://www.booking.com/rack_rates/rr_log_rendered'), // Wait till rendered
-        ])
+        await nextBtn.click()
+        await page.waitForSelector('#review_list_page_container', { visible: true })
       }
-    } while (nextBtn)
+    } while (!isEnd && nextBtn)
   } catch (err) {
-    throw new Error(err)
+    return console.error(err)
   } finally {
     if (browser !== null) {
       await browser.close()
     }
   }
+
+  console.dir(allReviews) // TEMP
 
   // // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
   // const file = storage
@@ -129,13 +134,14 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
   //   .file(`${dateTimeNow.format('YYYY-MM-DD_HHmm')}_${data.message}.json`) // hotelid here
 
   // try {
-  //   await file.save(JSON.stringify(totalItems, null, 2), {
+  //   await file.save(JSON.stringify(allReviews, null, 2), {
   //     contentType: 'application/json',
   //     resumable: false,
   //   })
   // } catch (err) {
-  //   throw new Error(err)
+  //   return console.error(err)
   // }
 
   // return console.log(`Complete! File name: ${file.name}`)
+  return console.log('Done..')
 }
