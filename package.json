@@ -15,7 +15,8 @@
     "format:json": "prettier --write {.,**}/*.json",
     "format:md": "prettier --write {.,**}/*.md",
     "ws": "yarn workspace",
-    "dev": "tsnd --respawn --transpileOnly scripts/exec-bb.ts"
+    "dev:bb": "tsnd --respawn --transpileOnly scripts/exec-bb.ts",
+    "dev:rv": "tsnd --respawn --transpileOnly scripts/exec-rv.ts"
   },
   "devDependencies": {
     "@types/node": "^10.17.13",
