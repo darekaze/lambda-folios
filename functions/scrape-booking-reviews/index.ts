@@ -32,7 +32,7 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
 
     const page = await browser.newPage()
     await page.setUserAgent(
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
     )
     await page.setRequestInterception(true)
     page.on('request', req => (banned.includes(req.resourceType()) ? req.abort() : req.continue()))
@@ -42,31 +42,41 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
       { waitUntil: 'networkidle2' },
     )
 
+    // TODO: get basic information first
+    // Hotel_name
+    // Hotel_Address
+    // Average_Score
+    // Total review count
+
     // Filter to only fetch english reviews
-    await page.$eval('.language_filter input[value="en"]', node => node.parentElement.click())
-    await page.waitForSelector('#review_list_page_container', { visible: true })
+    await Promise.all([
+      page.$eval('.language_filter input[value="en"]', node => node.parentElement.click()),
+      page.waitForResponse(
+        res => res.url().includes('/has_seen_review_list') && res.status() === 200,
+      ),
+    ])
 
     // Loop through reviews and scrape data
     let nextBtn: ElementHandle = null
     let isEnd = true
 
     do {
-      const res = await page.evaluate(async () => {
+      const result = await page.evaluate(async () => {
         const reviews = Array.from<HTMLElement>(
           document.querySelectorAll('#review_list_page_container .review_list .c-review-block'),
         )
 
         return Promise.all(
-          reviews.map(async item => {
-            // Check whether the review is helpful, only process with helpful review
+          reviews.map(async (item: HTMLElement) => {
+            // Check whether the review is helpful, and only process helpful review
             const isHelpful = !!item.querySelector('.c-review-block__row--helpful-vote')
 
             if (!isHelpful) return null
 
-            // Process helpful review // WONTFIX: problematic to use in China
+            // Scrape helpful review // WONTFIX: problematic to use in China
             const nationality = item
               .querySelector('.c-guest .bui-avatar-block__subtitle')
-              .lastChild.textContent.trim()
+              .textContent.trim()
             const score = +item.querySelector('.c-score').textContent.trim()
             const reviewDate = item
               .querySelector('.c-review-block__date')
@@ -85,37 +95,46 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
               }
             })
 
-            let room = 'Not provided'
-            const roomInfo = item.querySelector('.c-review-block__room-info .room_info_heading')
-            if (roomInfo) {
-              room = roomInfo.textContent.replace('Stayed in:', '').trim()
+            let stayedRoom = 'Not provided'
+            let stayedNight = 0
+            const roomInfo = Array.from<HTMLElement>(
+              item.querySelectorAll('.c-review-block__room-info__name'),
+            )
+            if (roomInfo.length === 2) {
+              stayedRoom = roomInfo[0].textContent.replace('Stayed in:', '').trim()
+              stayedNight = +roomInfo[1].firstChild.textContent.replace(/\D+/g, '')
             }
 
             return {
               nationality,
               score,
+              reviewDate,
               title,
               positive,
               negative,
-              room,
-              reviewDate,
+              stayedRoom,
+              stayedNight,
             }
           }),
         )
       })
 
       // If contains null, end scraping
-      isEnd = res.some(value => value === null)
+      isEnd = result.some(value => value === null)
 
       // Push to list
-      allReviews.push(...res.filter(n => n))
+      allReviews.push(...result.filter(n => n))
 
       // Check and proceed
-      await page.waitFor(1000) // TEMP: Scroll cause error, need to find a better way..
+      await page.waitFor(400) // Delay for scrolling effect
       nextBtn = await page.$('#review_list_page_container .bui-pagination__next-arrow a')
       if (nextBtn) {
-        await nextBtn.click()
-        await page.waitForSelector('#review_list_page_container', { visible: true })
+        await Promise.all([
+          nextBtn.click(),
+          page.waitForResponse(
+            res => res.url().includes('/has_seen_review_list') && res.status() === 200,
+          ),
+        ])
       }
     } while (!isEnd && nextBtn)
   } catch (err) {
@@ -128,13 +147,15 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
 
   console.dir(allReviews) // TEMP
 
+  // TODO: get Useful review count
+
   // // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
   // const file = storage
   //   .bucket('ag-booking-reviews')
-  //   .file(`${dateTimeNow.format('YYYY-MM-DD_HHmm')}_${data.message}.json`) // hotelid here
+  //   .file(`${dateTimeNow.format('YYYY-MM-DD_HHmm')}_${data.message}.json`) // hotelname with '_'
 
   // try {
-  //   await file.save(JSON.stringify(allReviews, null, 2), {
+  //   await file.save(JSON.stringify(allReviews), {
   //     contentType: 'application/json',
   //     resumable: false,
   //   })
