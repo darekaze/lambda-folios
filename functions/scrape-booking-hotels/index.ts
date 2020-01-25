@@ -11,23 +11,22 @@ interface BookingHotel {
 
 //* Note: everything should be in this file
 export const scrapeBookingHotels = async (data: BookingHotel) => {
-  const storage = new Storage()
+  const bucket = new Storage().bucket('ag-booking-hotels')
   const dateTimeNow = dayjs()
   const today = dateTimeNow.format('YYYY-MM-DD')
   const nextday = dateTimeNow.add(1, 'day').format('YYYY-MM-DD')
   const currency = 'JPY'
   const banned = ['image', 'media', 'font']
 
-  const totalItems = [] // List of data to be output
-
   let browser: Browser = null
+  let pageCounter = 1
 
   try {
     browser = await chromium.puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath,
-      headless: chromium.headless, // default to true in dev, set to false if it's too anoyying
+      headless: chromium.headless, // default to false in dev
     })
 
     const page = await browser.newPage()
@@ -40,7 +39,7 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
     await page.goto(`https://www.booking.com/?selected_currency=${currency}`)
 
     // Booking.com prevent direct dom manipulation, so we type and click lol
-    await page.type('input[name=ss]', data.message) // Read from pubsub trigger
+    await page.type('input[name=ss]', data.message) // Read from pubsub message
     await page.click('.xp__date-time')
     await page.click(`td[data-date="${today}"]`)
     await page.click(`td[data-date="${nextday}"]`)
@@ -59,7 +58,10 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
     ])
 
     // Loop through pages and scrape data
+    const sDate = dateTimeNow.format('YYYY-MM-DD_HHmm')
+    const sMessage = data.message.replace(' ', '_')
     let nextBtn: ElementHandle = null
+
     do {
       const res = await page.evaluate(
         async (dateRange: string[], ccy: string) => {
@@ -68,46 +70,52 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
           )
 
           return Promise.all(
+            // Return null for error item
             items.map(async item => {
-              const { dataset } = item
+              try {
+                const { dataset } = item
 
-              const hotel_name = item.querySelector('.sr-hotel__name').textContent.trim()
-              const urlpath = item.querySelector<HTMLAnchorElement>('a.hotel_name_link').pathname
-              const is_partner = !!item.querySelector('.-iconset-thumbs_up_square')
-              const location = item
-                .querySelector('.sr_card_address_line a')
-                .firstChild.textContent.trim()
+                const hotel_name = item.querySelector('.sr-hotel__name').textContent.trim()
+                const urlpath = item.querySelector<HTMLAnchorElement>('a.hotel_name_link').pathname
+                const is_partner = !!item.querySelector('.-iconset-thumbs_up_square')
+                const location = item
+                  .querySelector('.sr_card_address_line a')
+                  .firstChild.textContent.trim()
 
-              const review_score = +dataset.score
-              const review_count = review_score
-                ? +item.querySelector('.bui-review-score__text').textContent.replace(/\D+/g, '')
-                : 0
+                const review_score = +dataset.score
+                const review_count = review_score
+                  ? +item.querySelector('.bui-review-score__text').textContent.replace(/\D+/g, '')
+                  : 0
 
-              // FIXME: next line could be problematic (table still needs to be checked i guess)
-              const roomNode = item.querySelector('div.featuredRooms')
-              const featured_room = roomNode.querySelector('.room_link strong').textContent
-              const price = +roomNode
-                .querySelector('.bui-price-display__value')
-                .textContent.replace(/\D+/g, '')
-              const has_extra = roomNode
-                .querySelector('.prd-taxes-and-fees-under-price')
-                .textContent.includes('Additional')
+                //* Next line could be problematic (might need to check table)
+                const roomNode = item.querySelector('div.featuredRooms')
+                const featured_room = roomNode.querySelector('.room_link strong').textContent
+                const price = +roomNode
+                  .querySelector('.bui-price-display__value')
+                  .textContent.replace(/\D+/g, '')
+                const has_extra = roomNode
+                  .querySelector('.prd-taxes-and-fees-under-price')
+                  .textContent.includes('Additional')
 
-              return {
-                hotel_id: +dataset.hotelid,
-                stars: +dataset.class,
-                hotel_name,
-                location,
-                is_partner,
-                review_score,
-                review_count,
-                featured_room,
-                currency: ccy,
-                price,
-                has_extra,
-                in_date: dateRange[0],
-                out_date: dateRange[1],
-                url: `https://www.booking.com${urlpath}`,
+                return {
+                  hotel_id: +dataset.hotelid,
+                  stars: +dataset.class,
+                  hotel_name,
+                  location,
+                  is_partner,
+                  review_score,
+                  review_count,
+                  featured_room,
+                  currency: ccy,
+                  price,
+                  has_extra,
+                  in_date: dateRange[0],
+                  out_date: dateRange[1],
+                  url: `https://www.booking.com${urlpath}`,
+                }
+              } catch (err) {
+                console.warn(err)
+                return null
               }
             }),
           )
@@ -115,8 +123,16 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
         [today, nextday],
         currency,
       )
-      // Push to list
-      totalItems.push(...res)
+
+      // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
+      const file = bucket.file(`${sDate}_${sMessage}_${pageCounter}.json`)
+
+      await file.save(JSON.stringify(res.filter(n => n)), {
+        contentType: 'application/json',
+        resumable: false,
+      })
+      console.log(`JSON uploaded! File name: ${file.name}`)
+      pageCounter += 1
 
       // Check and proceed
       nextBtn = await page.$('.bui-pagination__next-arrow a')
@@ -135,19 +151,5 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
     }
   }
 
-  // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
-  const file = storage
-    .bucket('ag-booking-hotels')
-    .file(`${dateTimeNow.format('YYYY-MM-DD_HHmm')}_${data.message}.json`)
-
-  try {
-    await file.save(JSON.stringify(totalItems, null, 2), {
-      contentType: 'application/json',
-      resumable: false,
-    })
-  } catch (err) {
-    return console.error(err)
-  }
-
-  return console.log(`Complete! File name: ${file.name}`)
+  return console.log(`All Done!! Total page number: ${pageCounter}`)
 }
