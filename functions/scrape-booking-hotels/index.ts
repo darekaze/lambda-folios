@@ -135,7 +135,7 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
       pageCounter += 1
 
       // Check and proceed
-      await page.waitFor(200) // wait for scroll..
+      await page.waitFor(220) // wait for scroll..
       nextBtn = await page.$('.bui-pagination__next-arrow a')
       if (nextBtn) {
         await Promise.all([
