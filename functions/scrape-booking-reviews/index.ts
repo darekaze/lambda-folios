@@ -46,7 +46,7 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath,
-      headless: chromium.headless, // default to true in dev, set to false if it's too anoyying
+      headless: chromium.headless, // default to false in dev
     })
 
     const page = await browser.newPage()
@@ -139,7 +139,6 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
               }
             })
 
-            // FIXME: error
             let stayedRoom = 'Not provided'
             let stayedNight = 0
             const roomInfo = Array.from<HTMLElement>(
@@ -171,7 +170,7 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
       allReviews.push(...(result.filter(n => n) as HotelReview[]))
 
       // Check and proceed
-      await page.waitFor(450) // Delay for scrolling effect
+      await page.waitFor(430) // Delay for scrolling effect
       nextBtn = await page.$('#review_list_page_container .bui-pagination__next-arrow a')
       if (nextBtn && !isEnd) {
         await Promise.all([
