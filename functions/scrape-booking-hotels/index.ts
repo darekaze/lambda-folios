@@ -51,11 +51,9 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
     ])
 
     // Set filters
-    await Promise.all([
-      page.click('#filter_out_of_stock a'),
-      page.click('#filter_concise_unit_type a[data-value="Hotels + more"]'),
-      page.waitForResponse('https://www.booking.com/rack_rates/rr_log_rendered'),
-    ])
+    await page.click('#filter_out_of_stock a')
+    await page.click('#filter_concise_unit_type a[data-value="Hotels + more"]')
+    await page.waitForResponse('https://www.booking.com/rack_rates/rr_log_rendered')
 
     // Loop through pages and scrape data
     const sDate = dateTimeNow.format('YYYY-MM-DD_HHmm')
@@ -135,7 +133,6 @@ export const scrapeBookingHotels = async (data: BookingHotel) => {
       pageCounter += 1
 
       // Check and proceed
-      await page.waitFor(220) // wait for scroll..
       nextBtn = await page.$('.bui-pagination__next-arrow a')
       if (nextBtn) {
         await Promise.all([
