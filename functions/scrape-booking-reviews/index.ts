@@ -198,7 +198,7 @@ export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
 
   // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
   const sDate = dateTimeNow.format('YYYY-MM-DD_HHmm')
-  const sName = hotelInfo.name.replace(/\s\s+/g, '_')
+  const sName = hotelInfo.name.replace(/\s/g, '_')
   const file = storage.bucket('ag-booking-reviews').file(`${sDate}_${sName}.json`)
 
   try {
