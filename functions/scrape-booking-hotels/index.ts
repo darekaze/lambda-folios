@@ -4,19 +4,27 @@ import dayjs from 'dayjs'
 import { Storage } from '@google-cloud/storage'
 import { Browser, ElementHandle } from 'puppeteer-core'
 
+interface PubSubEvent {
+  '@type': string
+  attribute?: any
+  data?: string
+}
+
 // Message can be customized
-interface BookingHotel {
+interface BookingHotelSearch {
   message: string
 }
 
 //* Note: everything should be in this file
-export const scrapeBookingHotels = async (data: BookingHotel) => {
+export const scrapeBookingHotels = async (event: PubSubEvent) => {
   const bucket = new Storage().bucket('ag-booking-hotels')
   const dateTimeNow = dayjs()
   const today = dateTimeNow.format('YYYY-MM-DD')
   const nextday = dateTimeNow.add(1, 'day').format('YYYY-MM-DD')
   const currency = 'JPY'
   const banned = ['image', 'media', 'font']
+
+  const data: BookingHotelSearch = JSON.parse(Buffer.from(event.data, 'base64').toString())
 
   let browser: Browser = null
   let pageCounter = 1

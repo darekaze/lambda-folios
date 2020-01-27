@@ -24,19 +24,27 @@ interface HotelReview {
   stayedNight: number
 }
 
+interface PubSubEvent {
+  '@type': string
+  attribute?: any
+  data?: string
+}
+
 // Message can be customized
 interface HotelReviewEntry {
   url: string
 }
 
 //* Note: everything should be in this file
-export const scrapeBookingReviews = async (data: HotelReviewEntry) => {
+export const scrapeBookingReviews = async (event: PubSubEvent) => {
   const storage = new Storage()
   const dateTimeNow = dayjs()
   const today = dateTimeNow.format('YYYY-MM-DD')
   const nextday = dateTimeNow.add(1, 'day').format('YYYY-MM-DD')
   const currency = 'JPY'
   const banned = ['image', 'media', 'font']
+
+  const data: HotelReviewEntry = JSON.parse(Buffer.from(event.data, 'base64').toString())
 
   let hotelInfo: HotelInfo = null
   let browser: Browser = null
