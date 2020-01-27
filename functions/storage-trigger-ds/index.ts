@@ -8,7 +8,7 @@ interface GCSMessage {
   bucket: string
 }
 
-export const storageTriggerReview = async (data: GCSMessage) => {
+export const storageTriggerDS = async (data: GCSMessage) => {
   const pubSubClient = new PubSub()
   const storage = new Storage()
   const file = storage.bucket(data.bucket).file(data.name)

@@ -6,7 +6,7 @@ rm -f index.js
 yarn build
 
 # Deploy to gcp
-gcloud functions deploy storageTriggerReview \
+gcloud functions deploy storageTriggerDS \
   --runtime nodejs8 \
   --trigger-resource ag-booking-hotels \
   --trigger-event google.storage.object.finalize \

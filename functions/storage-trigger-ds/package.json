@@ -1,5 +1,5 @@
 {
-  "name": "@ag/storage-trigger-review",
+  "name": "@ag/storage-trigger-ds",
   "version": "0.0.1",
   "license": "UNLICENSED",
   "private": true,
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "start": "functions-framework --target=storageTriggerReview --signature-type=event",
+    "start": "functions-framework --target=storageTriggerDS --signature-type=event",
     "prestart": "yarn build",
     "deploy": "./deploy.sh"
   },
