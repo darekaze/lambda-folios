@@ -4,25 +4,26 @@ import dayjs from 'dayjs'
 import { Storage } from '@google-cloud/storage'
 import { Browser, ElementHandle } from 'puppeteer-core'
 
-interface HotelInfo {
-  name: string
-  address: string
+type HotelInfo = {
+  hotel_name: string
+  hotel_address: string
   avg_score: number
   total_review_count: number
   useful_review_count: number
-  reviews: HotelReview[]
 }
 
-interface HotelReview {
-  nationality: string
-  score: number
-  reviewDate: string
+type HotelReview = {
+  review_date: string
+  reviewer_nationality: string
+  reviewer_score: number
   title: string
   positive: string
   negative: string
-  stayedRoom: string
-  stayedNight: number
+  stayed_room: string
+  stayed_night: number
 }
+
+type HotelReviewOutput = HotelInfo & HotelReview & { scraped_at: string }
 
 interface PubSubEvent {
   '@type': string
@@ -46,8 +47,9 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
 
   const data: HotelReviewEntry = JSON.parse(Buffer.from(event.data, 'base64').toString())
 
-  let hotelInfo: HotelInfo = null
   let browser: Browser = null
+  let hotelInfo: HotelInfo = null
+  let output: HotelReviewOutput[] = null
 
   try {
     browser = await chromium.puppeteer.launch({
@@ -71,8 +73,8 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
 
     // Get basic info
     hotelInfo = await page.evaluate(() => {
-      const name = document.querySelector('#hp_hotel_name').lastChild.textContent.trim()
-      const address = document.querySelector('.hp_address_subtitle').textContent.trim()
+      const hotel_name = document.querySelector('#hp_hotel_name').lastChild.textContent.trim()
+      const hotel_address = document.querySelector('.hp_address_subtitle').textContent.trim()
       const avg_score = +document
         .querySelector('.reviews_panel_header_score .review-score-badge')
         .textContent.trim()
@@ -81,12 +83,11 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
         .textContent.replace(/\D+/g, '')
 
       return {
-        name,
-        address,
+        hotel_name,
+        hotel_address,
         avg_score,
         total_review_count,
         useful_review_count: undefined,
-        reviews: undefined,
       }
     })
 
@@ -123,13 +124,13 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
             }
 
             // Scrape helpful review
-            let nationality = 'None'
+            let reviewer_nationality = 'None'
             const nationInfo = item.querySelector('.c-guest .bui-avatar-block__subtitle')
             if (nationInfo) {
-              nationality = nationInfo.textContent.trim()
+              reviewer_nationality = nationInfo.textContent.trim()
             }
 
-            const score = +item.querySelector('.c-score').textContent.trim()
+            const reviewer_score = +item.querySelector('.c-score').textContent.trim()
             const reviewDate = item
               .querySelector('.c-review-block__date')
               .textContent.replace('Reviewed:', '')
@@ -147,25 +148,25 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
               }
             })
 
-            let stayedRoom = 'Not provided'
-            let stayedNight = 0
+            let stayed_room = 'Not provided'
+            let stayed_night = 0
             const roomInfo = Array.from<HTMLElement>(
               item.querySelectorAll('.c-review-block__room-info__name'),
             )
             if (roomInfo.length > 1) {
-              stayedRoom = roomInfo[0].textContent.replace('Stayed in:', '').trim()
-              stayedNight = +roomInfo[1].firstChild.textContent.replace(/\D+/g, '')
+              stayed_room = roomInfo[0].textContent.replace('Stayed in:', '').trim()
+              stayed_night = +roomInfo[1].firstChild.textContent.replace(/\D+/g, '')
             }
 
             return {
-              nationality,
-              score,
-              reviewDate,
+              review_date: new Date(reviewDate).toISOString(),
+              reviewer_nationality,
+              reviewer_score,
               title,
               positive,
               negative,
-              stayedRoom,
-              stayedNight,
+              stayed_room,
+              stayed_night,
             }
           }),
         )
@@ -190,9 +191,13 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
       }
     } while (!isEnd && nextBtn)
 
-    // Organize reviews to Json
+    // Organize reviews to Json output
     hotelInfo.useful_review_count = allReviews.length
-    hotelInfo.reviews = allReviews
+    output = allReviews.map<HotelReviewOutput>(review => ({
+      ...hotelInfo,
+      ...review,
+      scraped_at: dateTimeNow.toISOString(),
+    }))
 
     // --error handling--
   } catch (err) {
@@ -205,11 +210,11 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
 
   // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
   const sDate = dateTimeNow.format('YYYY-MM-DD_HHmm')
-  const sName = hotelInfo.name.replace(/\s/g, '_')
+  const sName = hotelInfo.hotel_name.replace(/\s/g, '_')
   const file = storage.bucket('ag-booking-reviews').file(`${sDate}_${sName}.json`)
 
   try {
-    await file.save(JSON.stringify(hotelInfo), {
+    await file.save(JSON.stringify(output), {
       contentType: 'application/json',
       resumable: false,
     })
