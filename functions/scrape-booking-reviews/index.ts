@@ -159,7 +159,7 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
             }
 
             return {
-              review_date: new Date(reviewDate).toISOString(),
+              review_date: new Date(reviewDate).toISOString().slice(0, 10),
               reviewer_nationality,
               reviewer_score,
               title,
@@ -196,7 +196,7 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
     output = allReviews.map<HotelReviewOutput>(review => ({
       ...hotelInfo,
       ...review,
-      scraped_at: dateTimeNow.toISOString(),
+      scraped_at: today,
     }))
 
     // --error handling--
