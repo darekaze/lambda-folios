@@ -17,6 +17,7 @@
     "chrome-aws-lambda": "~2.0.2",
     "dayjs": "^1.8.18",
     "iltorb": "~2.4.4",
+    "objects-to-csv": "^1.3.6",
     "puppeteer-core": "~2.0.0"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import chromium from 'chrome-aws-lambda'
 import dayjs from 'dayjs'
+import ObjectsToCsv from 'objects-to-csv'
 import { Storage } from '@google-cloud/storage'
 import { Browser, ElementHandle } from 'puppeteer-core'
 
@@ -61,7 +62,7 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
 
     const page = await browser.newPage()
     await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
     )
     await page.setRequestInterception(true)
     page.on('request', req => (banned.includes(req.resourceType()) ? req.abort() : req.continue()))
@@ -142,9 +143,13 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
             const reviewRows = Array.from<HTMLElement>(item.querySelectorAll('.c-review__row'))
             reviewRows.forEach(row => {
               if (row.querySelector('.c-review__prefix--color-green')) {
-                positive = row.querySelector('.c-review__body').textContent
+                positive = row
+                  .querySelector('.c-review__body')
+                  .textContent.replace(/[\r\n]+/g, '. ')
               } else {
-                negative = row.querySelector('.c-review__body').textContent
+                negative = row
+                  .querySelector('.c-review__body')
+                  .textContent.replace(/[\r\n]+/g, '. ')
               }
             })
 
@@ -211,11 +216,12 @@ export const scrapeBookingReviews = async (event: PubSubEvent) => {
   // Output data to cloud / https://googleapis.dev/nodejs/storage/latest/File.html#save
   const sDate = dateTimeNow.format('YYYY-MM-DD_HHmm')
   const sName = hotelInfo.hotel_name.replace(/\s/g, '_')
-  const file = storage.bucket('ag-booking-reviews').file(`${sDate}_${sName}.json`)
+  const file = storage.bucket('ag-booking-reviews').file(`${sDate}_${sName}.csv`)
 
   try {
-    await file.save(JSON.stringify(output), {
-      contentType: 'application/json',
+    const csvStr = await new ObjectsToCsv(output).toString()
+    await file.save(csvStr, {
+      contentType: 'text/csv',
       resumable: false,
     })
   } catch (err) {
