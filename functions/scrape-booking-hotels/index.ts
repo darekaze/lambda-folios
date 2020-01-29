@@ -65,7 +65,7 @@ export const scrapeBookingHotels = async (event: PubSubEvent) => {
 
     // Loop through pages and scrape data
     const sDate = dateTimeNow.format('YYYY-MM-DD_HHmm')
-    const sMessage = data.message.replace(/\s/g, '_')
+    const sMessage = data.message.replace(/[^\w\s]/gi, '').replace(/\s/g, '_')
     let nextBtn: ElementHandle = null
 
     do {

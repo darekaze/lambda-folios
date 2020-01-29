@@ -7,7 +7,6 @@
 .gcloudignore
 .git
 .gitignore
-@types
 node_modules
 index.ts
 tsconfig.json
